@@ -387,9 +387,7 @@ impl CalloraVault {
             );
             assert!(running >= item.amount, "insufficient balance");
             running = running.checked_sub(item.amount).unwrap();
-            total_amount = total_amount
-                .checked_add(item.amount)
-                .unwrap_or_else(|| panic!("total overflow"));
+            total_amount = total_amount.checked_add(item.amount).unwrap();
         }
 
         // ── Phase 2: write state ─────────────────────────────────────────────
@@ -399,10 +397,7 @@ impl CalloraVault {
         // ── Phase 3: emit one event per item ─────────────────────────────────
         // Walk from original balance down so each event shows the running total
         // after that item — same semantics as single deduct events.
-        let mut event_balance = meta
-            .balance
-            .checked_add(total_amount)
-            .unwrap_or_else(|| panic!("total overflow"));
+        let mut event_balance = meta.balance.checked_add(total_amount).unwrap();
         for item in items.iter() {
             event_balance = event_balance.checked_sub(item.amount).unwrap();
             let rid = item.request_id.clone().unwrap_or(Symbol::new(&env, ""));
