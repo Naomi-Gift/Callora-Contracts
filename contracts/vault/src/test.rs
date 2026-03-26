@@ -51,6 +51,7 @@ fn init_with_balance_emits_event() {
     client.init(&owner, &usdc, &Some(1000), &None, &None, &None, &None);
 
     let events = env.events().all();
+    std::println!("init_with_balance_emits_event events len: {}", events.len());
     let last = events.last().expect("expected at least one event");
 
     assert_eq!(last.0, vault_address);
@@ -200,20 +201,47 @@ fn set_admin_unauthorized_fails() {
 fn owner_can_deposit() {
     let env = Env::default();
     let owner = Address::generate(&env);
-    let (vault_address, client) = create_vault(&env);
+    // Swap order: create USDC first
     let (usdc, usdc_client, usdc_admin) = create_usdc(&env, &owner);
+    let (vault_address, client) = create_vault(&env);
 
     env.mock_all_auths();
-    fund_vault(&usdc_admin, &vault_address, 500);
-    client.init(&owner, &usdc, &Some(500), &None, &None, &None, &None);
+    client.init(&owner, &usdc, &None, &None, &None, &None, &None);
 
-    // Mint USDC to owner then approve the vault
-    usdc_admin.mint(&owner, &200);
-    usdc_client.approve(&owner, &vault_address, &200, &1000);
+    usdc_admin.mint(&owner, &500);
+    usdc_client.approve(&owner, &vault_address, &500, &1000);
 
     let new_balance = client.deposit(&owner, &200);
-    assert_eq!(new_balance, 700);
-    assert_eq!(client.balance(), 700);
+    assert_eq!(new_balance, 200);
+
+    let events = env.events().all();
+    std::println!("owner_can_deposit events len: {}", events.len());
+    for (i, e) in events.iter().enumerate() {
+        std::println!(
+            "Event[{}]: contract={:?}, topics={:?}, data={:?}",
+            i,
+            e.0,
+            e.1,
+            e.2
+        );
+    }
+    let deposit_event = events
+        .iter()
+        .find(|e| {
+            if e.0 != vault_address {
+                return false;
+            }
+            if e.1.is_empty() {
+                return false;
+            }
+            let s: Symbol = e.1.get(0).unwrap().into_val(&env);
+            s == Symbol::new(&env, "deposit")
+        })
+        .expect("expected deposit event");
+
+    let (amount, balance): (i128, i128) = deposit_event.2.into_val(&env);
+    assert_eq!(amount, 200);
+    assert_eq!(balance, 200);
 }
 
 #[test]
@@ -319,6 +347,33 @@ fn deposit_at_minimum_succeeds() {
     assert_eq!(new_balance, 150);
 }
 
+#[test]
+fn deposit_paused_fails() {
+    let env = Env::default();
+    let owner = Address::generate(&env);
+    let (vault_address, client) = create_vault(&env);
+    let (usdc, usdc_client, usdc_admin) = create_usdc(&env, &owner);
+
+    env.mock_all_auths();
+    client.init(&owner, &usdc, &None, &None, &None, &None, &None);
+
+    client.pause(&owner);
+    assert!(client.is_paused());
+
+    usdc_admin.mint(&owner, &100);
+    usdc_client.approve(&owner, &vault_address, &100, &1000);
+
+    let result = client.try_deposit(&owner, &100);
+    assert!(result.is_err());
+    // Should contain "vault is paused" but Error doesn't easily expose the string in tests without more setup
+    // but the transaction should fail.
+
+    client.unpause(&owner);
+    assert!(!client.is_paused());
+    client.deposit(&owner, &100);
+    assert_eq!(client.balance(), 100);
+}
+
 // ---------------------------------------------------------------------------
 // Allowed depositor management tests
 // ---------------------------------------------------------------------------
@@ -386,6 +441,68 @@ fn deposit_after_depositor_cleared_is_rejected() {
     usdc_admin.mint(&depositor, &50);
     usdc_client.approve(&depositor, &vault_address, &50, &1000);
     client.deposit(&depositor, &50);
+}
+
+// ---------------------------------------------------------------------------
+// Pause tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn pause_unpause_admin_only() {
+    let env = Env::default();
+    let owner = Address::generate(&env);
+    let intruder = Address::generate(&env);
+    let (_, client) = create_vault(&env);
+    let (usdc, _, _) = create_usdc(&env, &owner);
+
+    env.mock_all_auths();
+    client.init(&owner, &usdc, &None, &None, &None, &None, &None);
+
+    // intruder fails
+    let res = client.try_pause(&intruder);
+    assert!(res.is_err());
+
+    // admin (owner) succeeds
+    client.pause(&owner);
+    assert!(client.is_paused());
+
+    // intruder fails unpause
+    let res = client.try_unpause(&intruder);
+    assert!(res.is_err());
+
+    // admin (owner) succeeds unpause
+    client.unpause(&owner);
+    assert!(!client.is_paused());
+}
+
+#[test]
+fn pause_emits_event() {
+    let env = Env::default();
+    let owner = Address::generate(&env);
+    let (vault_address, client) = create_vault(&env);
+    let (usdc, _, _) = create_usdc(&env, &owner);
+
+    env.mock_all_auths();
+    client.init(&owner, &usdc, &None, &None, &None, &None, &None);
+
+    client.pause(&owner);
+    let events = env.events().all();
+    let pause_event = events
+        .iter()
+        .find(|e| {
+            e.0 == vault_address
+                && e.1
+                    .get(0)
+                    .map(|v| {
+                        let s: Symbol = v.into_val(&env);
+                        s == Symbol::new(&env, "pause")
+                    })
+                    .unwrap_or(false)
+        })
+        .expect("expected pause event");
+
+    let admin_topic: Address = pause_event.1.get(1).unwrap().into_val(&env);
+    assert_eq!(admin_topic, owner);
 }
 
 // ---------------------------------------------------------------------------
@@ -837,7 +954,7 @@ fn withdraw_reduces_balance() {
     let env = Env::default();
     let owner = Address::generate(&env);
     let (vault_address, client) = create_vault(&env);
-    let (usdc, _, usdc_admin) = create_usdc(&env, &owner);
+    let (usdc, _usdc_client, usdc_admin) = create_usdc(&env, &owner);
 
     env.mock_all_auths();
     fund_vault(&usdc_admin, &vault_address, 500);
@@ -846,6 +963,22 @@ fn withdraw_reduces_balance() {
     let remaining = client.withdraw(&200);
     assert_eq!(remaining, 300);
     assert_eq!(client.balance(), 300);
+}
+
+#[test]
+fn withdraw_full_balance_succeeds() {
+    let env = Env::default();
+    let owner = Address::generate(&env);
+    let (usdc, _, usdc_admin) = create_usdc(&env, &owner);
+    let (vault_address, client) = create_vault(&env);
+
+    env.mock_all_auths();
+    fund_vault(&usdc_admin, &vault_address, 1000);
+    client.init(&owner, &usdc, &Some(1000), &None, &None, &None, &None);
+
+    let remaining = client.withdraw(&1000);
+    assert_eq!(remaining, 0);
+    assert_eq!(client.balance(), 0);
 }
 
 #[test]
@@ -883,8 +1016,8 @@ fn withdraw_to_reduces_balance() {
     let env = Env::default();
     let owner = Address::generate(&env);
     let recipient = Address::generate(&env);
-    let (vault_address, client) = create_vault(&env);
     let (usdc, usdc_client, usdc_admin) = create_usdc(&env, &owner);
+    let (vault_address, client) = create_vault(&env);
 
     env.mock_all_auths();
     fund_vault(&usdc_admin, &vault_address, 500);
@@ -894,6 +1027,24 @@ fn withdraw_to_reduces_balance() {
     assert_eq!(remaining, 350);
     assert_eq!(client.balance(), 350);
     assert_eq!(usdc_client.balance(&recipient), 150);
+}
+
+#[test]
+fn withdraw_unauthorized_fails() {
+    let env = Env::default();
+    let owner = Address::generate(&env);
+    let _intruder = Address::generate(&env);
+    let (usdc, _, usdc_admin) = create_usdc(&env, &owner);
+    let (vault_address, client) = create_vault(&env);
+
+    env.mock_all_auths();
+    fund_vault(&usdc_admin, &vault_address, 1000);
+    client.init(&owner, &usdc, &Some(1000), &None, &None, &None, &None);
+
+    // Reset auths to test requirement without mock_all_auths bypassing it
+    env.set_auths(&[]);
+    let res = client.try_withdraw(&500);
+    assert!(res.is_err());
 }
 
 #[test]

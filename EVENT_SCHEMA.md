@@ -91,10 +91,35 @@ Emitted when existing metadata is updated via `update_metadata(offering_id, meta
 
 ---
 
+---
+
+### `pause`
+
+Emitted when the vault is paused by the admin.
+
+| Field   | Location | Type   | Description   |
+|---------|----------|--------|---------------|
+| topic 0 | topics   | Symbol | `"pause"`     |
+| topic 1 | topics   | Address| admin         |
+| data    | data     | ()     | empty         |
+
+---
+
+### `unpause`
+
+Emitted when the vault is unpaused by the admin.
+
+| Field   | Location | Type   | Description   |
+|---------|----------|--------|---------------|
+| topic 0 | topics   | Symbol | `"unpause"`   |
+| topic 1 | topics   | Address| admin         |
+| data    | data     | ()     | empty         |
+
+---
+
 ## Not yet implemented
 
 - **OwnershipTransfer**: not present in current vault; would list old_owner, new_owner.
-- **Pause**: not present in current vault; would indicate pause state change.
 
 ---
 

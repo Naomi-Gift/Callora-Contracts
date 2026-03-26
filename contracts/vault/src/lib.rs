@@ -60,6 +60,7 @@ pub enum StorageKey {
     RevenuePool,
     MaxDeduct,
     Metadata(String),
+    Paused,
 }
 
 // Replaced by StorageKey enum variants
@@ -261,8 +262,12 @@ impl CalloraVault {
 
     /// Deposits USDC into the vault.
     /// Can be called by the Owner or any Allowed Depositor.
+    ///
+    /// # Panics
+    /// * `"vault is paused"` – if deposits are disabled.
     pub fn deposit(env: Env, caller: Address, amount: i128) -> i128 {
         caller.require_auth();
+        assert!(!Self::is_paused(env.clone()), "vault is paused");
         assert!(amount > 0, "amount must be positive");
         assert!(
             Self::is_authorized_depositor(env.clone(), caller.clone()),
@@ -287,9 +292,45 @@ impl CalloraVault {
         meta.balance += amount;
         env.storage().instance().set(&StorageKey::Meta, &meta);
 
-        env.events()
-            .publish((Symbol::new(&env, "deposit"), caller), amount);
+        env.events().publish(
+            (Symbol::new(&env, "deposit"), caller.clone()),
+            (amount, meta.balance),
+        );
         meta.balance
+    }
+
+    /// Pause deposits to the vault.
+    /// Can only be called by the Admin.
+    pub fn pause(env: Env, caller: Address) {
+        caller.require_auth();
+        let admin = Self::get_admin(env.clone());
+        if caller != admin {
+            panic!("unauthorized: caller is not admin");
+        }
+        env.storage().instance().set(&StorageKey::Paused, &true);
+        env.events()
+            .publish((Symbol::new(&env, "pause"), admin), ());
+    }
+
+    /// Unpause deposits to the vault.
+    /// Can only be called by the Admin.
+    pub fn unpause(env: Env, caller: Address) {
+        caller.require_auth();
+        let admin = Self::get_admin(env.clone());
+        if caller != admin {
+            panic!("unauthorized: caller is not admin");
+        }
+        env.storage().instance().set(&StorageKey::Paused, &false);
+        env.events()
+            .publish((Symbol::new(&env, "unpause"), admin), ());
+    }
+
+    /// Check if the vault is currently paused.
+    pub fn is_paused(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&StorageKey::Paused)
+            .unwrap_or(false)
     }
 
     pub fn get_max_deduct(env: Env) -> i128 {
@@ -440,6 +481,11 @@ impl CalloraVault {
         usdc.transfer(&env.current_contract_address(), &meta.owner, &amount);
         meta.balance -= amount;
         env.storage().instance().set(&StorageKey::Meta, &meta);
+
+        env.events().publish(
+            (Symbol::new(&env, "withdraw"), meta.owner.clone()),
+            (amount, meta.balance),
+        );
         meta.balance
     }
 
@@ -459,6 +505,11 @@ impl CalloraVault {
         usdc.transfer(&env.current_contract_address(), &to, &amount);
         meta.balance -= amount;
         env.storage().instance().set(&StorageKey::Meta, &meta);
+
+        env.events().publish(
+            (Symbol::new(&env, "withdraw_to"), meta.owner.clone(), to),
+            (amount, meta.balance),
+        );
         meta.balance
     }
 
