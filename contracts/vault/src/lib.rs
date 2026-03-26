@@ -60,6 +60,8 @@ pub enum StorageKey {
     RevenuePool,
     MaxDeduct,
     Metadata(String),
+    PendingOwner,
+    PendingAdmin,
 }
 
 // Replaced by StorageKey enum variants
@@ -156,7 +158,8 @@ impl CalloraVault {
             .expect("vault not initialized")
     }
 
-    /// Transfers the administrative role to a new address.
+    /// Nominates a new administrative address.
+    /// The nominee must call `accept_admin` to finalize the transfer.
     /// Can only be called by the current Admin.
     pub fn set_admin(env: Env, caller: Address, new_admin: Address) {
         caller.require_auth();
@@ -164,7 +167,44 @@ impl CalloraVault {
         if caller != current_admin {
             panic!("unauthorized: caller is not admin");
         }
-        env.storage().instance().set(&StorageKey::Admin, &new_admin);
+        env.storage()
+            .instance()
+            .set(&StorageKey::PendingAdmin, &new_admin);
+
+        env.events().publish(
+            (
+                Symbol::new(&env, "admin_nominated"),
+                current_admin,
+                new_admin,
+            ),
+            (),
+        );
+    }
+
+    /// Accepts the administrative role.
+    /// Can only be called by the pending Admin.
+    pub fn accept_admin(env: Env) {
+        let pending_admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::PendingAdmin)
+            .expect("no admin transfer pending");
+        pending_admin.require_auth();
+
+        let current_admin = Self::get_admin(env.clone());
+        env.storage()
+            .instance()
+            .set(&StorageKey::Admin, &pending_admin);
+        env.storage().instance().remove(&StorageKey::PendingAdmin);
+
+        env.events().publish(
+            (
+                Symbol::new(&env, "admin_accepted"),
+                current_admin,
+                pending_admin,
+            ),
+            (),
+        );
     }
 
     /// Require that the caller is the owner, panic otherwise.
@@ -401,7 +441,8 @@ impl CalloraVault {
         Self::get_meta(env).balance
     }
 
-    /// Transfers ownership of the vault to a new address.
+    /// Nominates a new owner for the vault.
+    /// The nominee must call `accept_ownership` to finalize the transfer.
     /// Can only be called by the current Owner.
     pub fn transfer_ownership(env: Env, new_owner: Address) {
         let mut meta = Self::get_meta(env.clone());
@@ -411,17 +452,45 @@ impl CalloraVault {
             "new_owner must be different from current owner"
         );
 
+        env.storage()
+            .instance()
+            .set(&StorageKey::PendingOwner, &new_owner);
+
         env.events().publish(
             (
-                Symbol::new(&env, "transfer_ownership"),
-                meta.owner.clone(),
-                new_owner.clone(),
+                Symbol::new(&env, "ownership_nominated"),
+                meta.owner,
+                new_owner,
             ),
             (),
         );
+    }
 
-        meta.owner = new_owner;
+    /// Accepts ownership of the vault.
+    /// Can only be called by the pending Owner.
+    pub fn accept_ownership(env: Env) {
+        let pending_owner: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::PendingOwner)
+            .expect("no ownership transfer pending");
+        pending_owner.require_auth();
+
+        let mut meta = Self::get_meta(env.clone());
+        let old_owner = meta.owner.clone();
+        meta.owner = pending_owner;
+
         env.storage().instance().set(&StorageKey::Meta, &meta);
+        env.storage().instance().remove(&StorageKey::PendingOwner);
+
+        env.events().publish(
+            (
+                Symbol::new(&env, "ownership_accepted"),
+                old_owner,
+                meta.owner,
+            ),
+            (),
+        );
     }
 
     /// Withdraws USDC from the vault to the owner.

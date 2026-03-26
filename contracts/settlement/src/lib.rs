@@ -39,6 +39,7 @@ pub struct BalanceCreditedEvent {
 
 const VAULT_KEY: &str = "vault";
 const ADMIN_KEY: &str = "admin";
+const PENDING_ADMIN_KEY: &str = "pending_admin";
 const DEVELOPER_BALANCES_KEY: &str = "developer_balances";
 const GLOBAL_POOL_KEY: &str = "global_pool";
 
@@ -182,7 +183,7 @@ impl CalloraSettlement {
         result
     }
 
-    /// Update admin address (admin only)
+    /// Nominate a new admin (admin only)
     pub fn set_admin(env: Env, caller: Address, new_admin: Address) {
         caller.require_auth();
         let current_admin = Self::get_admin(env.clone());
@@ -191,7 +192,34 @@ impl CalloraSettlement {
         }
         env.storage()
             .instance()
-            .set(&Symbol::new(&env, ADMIN_KEY), &new_admin);
+            .set(&Symbol::new(&env, PENDING_ADMIN_KEY), &new_admin);
+
+        env.events().publish(
+            (
+                Symbol::new(&env, "admin_nominated"),
+                current_admin,
+                new_admin,
+            ),
+            (),
+        );
+    }
+
+    /// Accept the admin role (pending admin only)
+    pub fn accept_admin(env: Env) {
+        let inst = env.storage().instance();
+        let pending: Address = inst
+            .get(&Symbol::new(&env, PENDING_ADMIN_KEY))
+            .expect("no admin transfer pending");
+        pending.require_auth();
+
+        let current = Self::get_admin(env.clone());
+        inst.set(&Symbol::new(&env, ADMIN_KEY), &pending);
+        inst.remove(&Symbol::new(&env, PENDING_ADMIN_KEY));
+
+        env.events().publish(
+            (Symbol::new(&env, "admin_accepted"), current, pending),
+            (),
+        );
     }
 
     /// Update vault address (admin only)

@@ -130,7 +130,7 @@ fn distribute_unauthorized_panics() {
 }
 
 #[test]
-fn set_admin_transfers_control() {
+fn set_admin_two_step_succeeds() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);
@@ -141,7 +141,11 @@ fn set_admin_transfers_control() {
 
     client.init(&admin, &usdc_address);
     fund_pool(&usdc_admin, &pool_addr, 300);
+    
     client.set_admin(&admin, &new_admin);
+    assert_eq!(client.get_admin(), admin); // Still old admin
+
+    client.accept_admin();
     assert_eq!(client.get_admin(), new_admin);
 
     client.distribute(&new_admin, &developer, &100);
@@ -255,6 +259,7 @@ fn full_lifecycle() {
     client.receive_payment(&admin, &100, &true);
 
     client.set_admin(&admin, &new_admin);
+    client.accept_admin();
     assert_eq!(client.get_admin(), new_admin);
 
     client.distribute(&new_admin, &developer, &100);
@@ -489,4 +494,17 @@ fn batch_distribute_success_events() {
             assert_eq!(value, payments.get(i / 2).unwrap().1);
         }
     }
+}
+
+#[test]
+#[should_panic(expected = "no admin transfer pending")]
+fn accept_admin_fails_if_not_nominated() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let (_, client) = create_pool(&env);
+    let (usdc, _, _) = create_usdc(&env, &admin);
+
+    client.init(&admin, &usdc);
+    client.accept_admin();
 }

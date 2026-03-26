@@ -6,6 +6,7 @@ use soroban_sdk::{contract, contractimpl, token, Address, Env, Symbol, Vec};
 ///
 /// Flow: vault deduct → vault transfers USDC to this contract → admin calls distribute(to, amount).
 const ADMIN_KEY: &str = "admin";
+const PENDING_ADMIN_KEY: &str = "pending_admin";
 const USDC_KEY: &str = "usdc";
 
 #[contract]
@@ -55,12 +56,12 @@ impl RevenuePool {
             .expect("revenue pool not initialized")
     }
 
-    /// Replace the current admin. Only the existing admin may call this.
+    /// Nominates a new admin. The nominee must call `accept_admin` to finalize.
     ///
     /// # Arguments
     /// * `env` - The environment running the contract.
     /// * `caller` - Must be the current admin.
-    /// * `new_admin` - Address of the new admin to be set.
+    /// * `new_admin` - Address of the new admin to be nominated.
     ///
     /// # Panics
     /// * If the caller is not the current admin (`"unauthorized: caller is not admin"`).
@@ -71,7 +72,36 @@ impl RevenuePool {
             panic!("unauthorized: caller is not admin");
         }
         let inst = env.storage().instance();
-        inst.set(&Symbol::new(&env, ADMIN_KEY), &new_admin);
+        inst.set(&Symbol::new(&env, PENDING_ADMIN_KEY), &new_admin);
+
+        env.events().publish(
+            (Symbol::new(&env, "admin_nominated"), current, new_admin),
+            (),
+        );
+    }
+
+    /// Accepts the admin role. Only the pending admin may call this.
+    ///
+    /// # Arguments
+    /// * `env` - The environment running the contract.
+    ///
+    /// # Panics
+    /// * If no admin transfer is pending (`"no admin transfer pending"`).
+    pub fn accept_admin(env: Env) {
+        let inst = env.storage().instance();
+        let pending: Address = inst
+            .get(&Symbol::new(&env, PENDING_ADMIN_KEY))
+            .expect("no admin transfer pending");
+        pending.require_auth();
+
+        let current = Self::get_admin(env.clone());
+        inst.set(&Symbol::new(&env, ADMIN_KEY), &pending);
+        inst.remove(&Symbol::new(&env, PENDING_ADMIN_KEY));
+
+        env.events().publish(
+            (Symbol::new(&env, "admin_accepted"), current, pending),
+            (),
+        );
     }
 
     /// Placeholder: record that payment was received (e.g. from vault).

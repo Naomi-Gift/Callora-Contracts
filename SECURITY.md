@@ -32,7 +32,7 @@ This document outlines security best practices and checklist items for Callora v
 
 ### Ownership Transfer
 
-- [ ] Ownership transfer is two-step (optional but recommended)
+- [x] Ownership transfer is two-step (optional but recommended)
 - [ ] Ownership transfer emits events
 - [ ] Renounce ownership reviewed and justified
 

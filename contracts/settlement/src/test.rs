@@ -116,7 +116,7 @@ mod settlement_tests {
     }
 
     #[test]
-    fn test_set_admin() {
+    fn test_set_admin_two_step() {
         let env = Env::default();
         env.mock_all_auths();
         let admin = Address::generate(&env);
@@ -127,7 +127,24 @@ mod settlement_tests {
         client.init(&admin, &vault);
 
         client.set_admin(&admin, &new_admin);
+        assert_eq!(client.get_admin(), admin); // Still old admin
+
+        client.accept_admin();
         assert_eq!(client.get_admin(), new_admin);
+    }
+
+    #[test]
+    #[should_panic(expected = "no admin transfer pending")]
+    fn test_accept_admin_fails_if_not_nominated() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let vault = Address::generate(&env);
+        let addr = env.register(CalloraSettlement, ());
+        let client = CalloraSettlementClient::new(&env, &addr);
+        client.init(&admin, &vault);
+
+        client.accept_admin();
     }
 
     #[test]
