@@ -1508,6 +1508,70 @@ fn get_settlement_before_set_panics() {
     let (usdc, _, _) = create_usdc(&env, &owner);
 
     env.mock_all_auths();
+    env.mock_all_auths();
     client.init(&owner, &usdc, &None, &None, &None, &None, &None);
     client.get_settlement();
+}
+
+#[test]
+fn test_clear_allowed_depositors() {
+    let env = Env::default();
+    let owner = Address::generate(&env);
+    let depositor = Address::generate(&env);
+    let (vault_address, client) = create_vault(&env);
+    let (usdc, usdc_client, usdc_admin) = create_usdc(&env, &owner);
+
+    env.mock_all_auths();
+    client.init(&owner, &usdc, &None, &None, &None, &None, &None);
+
+    client.set_allowed_depositor(&owner, &Some(depositor.clone()));
+    client.set_allowed_depositor(&owner, &None);
+
+    usdc_admin.mint(&depositor, &50);
+    usdc_client.approve(&depositor, &vault_address, &50, &1000);
+    let result = client.try_deposit(&depositor, &50);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_set_authorized_caller() {
+    let env = Env::default();
+    let owner = Address::generate(&env);
+    let auth_caller = Address::generate(&env);
+    let (_, client) = create_vault(&env);
+    let (usdc, _, _) = create_usdc(&env, &owner);
+
+    env.mock_all_auths();
+    client.init(&owner, &usdc, &None, &None, &None, &None, &None);
+
+    client.set_authorized_caller(&auth_caller);
+    let meta = client.get_meta();
+    assert_eq!(meta.authorized_caller, Some(auth_caller));
+}
+
+#[test]
+fn test_deduct_with_settlement_success() {
+    let env = Env::default();
+    let owner = Address::generate(&env);
+    let settlement = Address::generate(&env);
+    let (vault_address, client) = create_vault(&env);
+    let (usdc_address, usdc_client, usdc_admin) = create_usdc(&env, &owner);
+
+    env.mock_all_auths();
+    fund_vault(&usdc_admin, &vault_address, 1000);
+    client.init(
+        &owner,
+        &usdc_address,
+        &Some(1000),
+        &None,
+        &None,
+        &None,
+        &None,
+    );
+    client.set_settlement(&owner, &settlement);
+
+    client.deduct(&owner, &300, &None);
+
+    assert_eq!(client.balance(), 700);
+    assert_eq!(usdc_client.balance(&settlement), 300);
 }
