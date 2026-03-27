@@ -211,16 +211,3 @@ fn batch_distribute_success_events() {
         }
     }
 }
-<<<<<<< HEAD
-<<<<<<< HEAD
-if let Ok(event_name) = Symbol::try_from_val(&env, &topic_0) {
-            if event_name == Symbol::new(&env, "batch_distribute") {
-                let value: i128 = i128::try_from_val(&env, &data).unwrap();
-                assert!(value == 300 || value == 200);
-            }
-        }
-// <--- Add one empty line right here
-=======
->>>>>>> 522cba8 (update)
-=======
->>>>>>> refs/remotes/origin/feature/settlement-init

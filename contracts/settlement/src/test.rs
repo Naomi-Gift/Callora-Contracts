@@ -49,20 +49,11 @@ mod settlement_tests {
             assert!(inst.has(&Symbol::new(&env, "vault")));
             assert!(inst.has(&Symbol::new(&env, "developer_balances")));
             assert!(inst.has(&Symbol::new(&env, "global_pool")));
+            let balances: Map<Address, i128> =
+                inst.get(&Symbol::new(&env, "developer_balances")).unwrap();
+            let balances: Map<Address, i128> =
+                inst.get(&Symbol::new(&env, "developer_balances")).unwrap();
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-            let balances: Map<Address, i128> =
-                inst.get(&Symbol::new(&env, "developer_balances")).unwrap();
-=======
-            let balances: Map<Address, i128> = inst
-                .get(&Symbol::new(&env, "developer_balances"))
-                .unwrap();
->>>>>>> 5bd0dcb (feat(settlement): initialization and baseline storage)
-=======
-            let balances: Map<Address, i128> =
-                inst.get(&Symbol::new(&env, "developer_balances")).unwrap();
->>>>>>> b0286fd (fmt)
             assert_eq!(balances.len(), 0);
         });
 
