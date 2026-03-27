@@ -66,6 +66,8 @@ jobs:
           cargo build --target wasm32-unknown-unknown --release
           cd ../revenue_pool
           cargo build --target wasm32-unknown-unknown --release
+          cd ../settlement
+          cargo build --target wasm32-unknown-unknown --release
 
       - name: Check WASM size
         run: |
