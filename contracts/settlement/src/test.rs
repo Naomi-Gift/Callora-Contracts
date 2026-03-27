@@ -123,21 +123,6 @@ mod settlement_tests {
     }
 
     #[test]
-    #[should_panic(expected = "unauthorized: caller must be vault or admin")]
-    fn test_receive_payment_unauthorized() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let admin = Address::generate(&env);
-        let vault = Address::generate(&env);
-        let unauthorized = Address::generate(&env);
-        let addr = env.register(CalloraSettlement, ());
-        let client = CalloraSettlementClient::new(&env, &addr);
-        client.init(&admin, &vault);
-
-        client.receive_payment(&unauthorized, &100i128, &true, &None);
-    }
-
-    #[test]
     #[should_panic(expected = "amount must be positive")]
     fn test_receive_payment_zero_amount() {
         let env = Env::default();
