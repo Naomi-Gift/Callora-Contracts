@@ -4,7 +4,7 @@ use super::*;
 use soroban_sdk::testutils::{Address as _, Events as _};
 use soroban_sdk::token;
 use soroban_sdk::TryFromVal;
-use soroban_sdk::{Address, Env, Symbol, TryIntoVal, Vec};
+use soroban_sdk::{Address, Env, Symbol, Vec};
 
 fn create_usdc<'a>(
     env: &'a Env,
@@ -211,12 +211,3 @@ fn batch_distribute_success_events() {
         }
     }
 }
-if let Ok(event_name) = Symbol::try_from_val(&env, &topic_0) {
-            if event_name == Symbol::new(&env, "batch_distribute") {
-                let value: i128 = i128::try_from_val(&env, &data).unwrap();
-                assert!(value == 300 || value == 200);
-            }
-        }
-    }
-}
-// <--- Add one empty line right here

@@ -74,6 +74,7 @@ pub enum StorageKey {
     Settlement,
     RevenuePool,
     MaxDeduct,
+    Paused,
     Metadata(String),
     Paused,
     PendingOwner,
@@ -84,6 +85,8 @@ pub enum StorageKey {
 
 /// Default maximum single deduct amount when not set at init (no cap).
 pub const DEFAULT_MAX_DEDUCT: i128 = i128::MAX;
+/// Maximum number of items allowed in a single batch_deduct call.
+pub const MAX_BATCH_SIZE: u32 = 50;
 
 /// Maximum length for offering metadata (e.g. IPFS CID or URI).
 pub const MAX_METADATA_LEN: u32 = 256;
@@ -184,7 +187,7 @@ impl CalloraVault {
         let allowed: Vec<Address> = env
             .storage()
             .instance()
-            .get(&Symbol::new(&env, ALLOWED_KEY))
+            .get(&StorageKey::AllowedDepositors)
             .unwrap_or(Vec::new(&env));
         allowed.contains(&caller)
     }
@@ -408,7 +411,7 @@ impl CalloraVault {
             "unauthorized: only owner or allowed depositor can deposit"
         );
 
-        let meta = Self::get_meta(env.clone());
+        let mut meta = Self::get_meta(env.clone());
         assert!(
             amount >= meta.min_deposit,
             "deposit below minimum: {} < {}",
@@ -602,7 +605,7 @@ impl CalloraVault {
     /// The nominee must call `accept_ownership` to finalize the transfer.
     /// Can only be called by the current Owner.
     pub fn transfer_ownership(env: Env, new_owner: Address) {
-        let mut meta = Self::get_meta(env.clone());
+        let meta = Self::get_meta(env.clone());
         meta.owner.require_auth();
         assert!(
             new_owner != meta.owner,
