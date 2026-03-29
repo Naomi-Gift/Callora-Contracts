@@ -523,9 +523,12 @@ impl CalloraVault {
     /// # Panics
     /// * `"vault is paused"` – if the circuit breaker is active.
     pub fn deduct(env: Env, caller: Address, amount: i128, request_id: Option<Symbol>) -> i128 {
+        // ── 1. Require Soroban-level auth for the caller ──────────────────────
         caller.require_auth();
         Self::require_not_paused(env.clone());
         assert!(amount > 0, "amount must be positive");
+
+        // ── 3. Enforce max_deduct cap ─────────────────────────────────────────
         let max_deduct = Self::get_max_deduct(env.clone());
         assert!(amount <= max_deduct, "deduct amount exceeds max_deduct");
 
@@ -537,6 +540,7 @@ impl CalloraVault {
         };
         assert!(authorized, "unauthorized caller");
 
+        // ── 6. Balance safety: explicit guard prevents underflow ──────────────
         assert!(meta.balance >= amount, "insufficient balance");
         let mut meta = Self::get_meta(env.clone());
         meta.balance = meta.balance.checked_sub(amount).unwrap();
@@ -550,15 +554,12 @@ impl CalloraVault {
             Self::transfer_to_settlement(env.clone(), amount);
         }
 
-        let topics = match &request_id {
-            Some(rid) => (Symbol::new(&env, "deduct"), caller.clone(), rid.clone()),
-            None => (
-                Symbol::new(&env, "deduct"),
-                caller.clone(),
-                Symbol::new(&env, ""),
-            ),
-        };
-        env.events().publish(topics, (amount, meta.balance));
+        // ── 9. Emit event ONLY after successful deduction ─────────────────────
+        //    Schema: topics = ("deduct", caller, request_id | ""), data = (amount, new_balance)
+        let rid = request_id.unwrap_or(Symbol::new(&env, ""));
+        env.events()
+            .publish((Symbol::new(&env, "deduct"), caller, rid), (amount, meta.balance));
+
         meta.balance
     }
 
