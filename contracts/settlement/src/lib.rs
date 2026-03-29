@@ -207,7 +207,28 @@ impl CalloraSettlement {
         result
     }
 
-    /// Nominate a new admin (admin only)
+    /// Nominate a new admin (admin only).
+    ///
+    /// # Arguments
+    /// * `caller` - Current admin address; must match stored admin
+    /// * `new_admin` - Address to nominate as new admin
+    ///
+    /// # Access Control
+    /// Only the current admin can call this function.
+    ///
+    /// # Security
+    /// This implements a two-step admin transfer process:
+    /// 1. Current admin calls `set_admin()` to nominate new admin
+    /// 2. Nominated admin must call `accept_admin()` to complete transfer
+    ///
+    /// This prevents accidental admin loss and ensures the new admin
+    /// has control of their private keys before gaining privileges.
+    ///
+    /// # Events
+    /// Emits `admin_nominated` event with current and new admin addresses.
+    ///
+    /// # Panics
+    /// Panics if caller is not the current admin.
     pub fn set_admin(env: Env, caller: Address, new_admin: Address) {
         caller.require_auth();
         let current_admin = Self::get_admin(env.clone());
@@ -228,7 +249,22 @@ impl CalloraSettlement {
         );
     }
 
-    /// Accept the admin role (pending admin only)
+    /// Accept the admin role (pending admin only).
+    ///
+    /// # Access Control
+    /// Only the nominated pending admin can call this function.
+    ///
+    /// # Security
+    /// This is the second step of the two-step admin transfer process.
+    /// The nominated admin must explicitly accept, proving control of
+    /// their private keys before gaining admin privileges.
+    ///
+    /// # Events
+    /// Emits `admin_accepted` event with old and new admin addresses.
+    ///
+    /// # Panics
+    /// Panics if there is no pending admin transfer (i.e., `set_admin()` 
+    /// was not called first).
     pub fn accept_admin(env: Env) {
         let inst = env.storage().instance();
         let pending: Address = inst
@@ -244,7 +280,27 @@ impl CalloraSettlement {
             .publish((Symbol::new(&env, "admin_accepted"), current, pending), ());
     }
 
-    /// Update vault address (admin only)
+    /// Update vault address (admin only).
+    ///
+    /// # Arguments
+    /// * `caller` - Current admin address; must match stored admin
+    /// * `new_vault` - New vault contract address to register
+    ///
+    /// # Access Control
+    /// Only the current admin can call this function.
+    ///
+    /// # Security
+    /// The vault address controls which contract can send payments to
+    /// the settlement contract. Only trusted addresses should be set.
+    /// Changing the vault address immediately revokes access from the
+    /// old vault, so coordinate carefully during migrations.
+    ///
+    /// # Events
+    /// This function does not emit events. Monitor vault changes by
+    /// comparing the result of `get_vault()` across blocks.
+    ///
+    /// # Panics
+    /// Panics if caller is not the current admin.
     pub fn set_vault(env: Env, caller: Address, new_vault: Address) {
         caller.require_auth();
         let current_admin = Self::get_admin(env.clone());
