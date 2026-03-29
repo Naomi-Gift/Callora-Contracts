@@ -59,10 +59,7 @@ StorageKey::Settlement
    - Returns the configured settlement contract address
    - Panic: "settlement address not set"
 
-3. **`transfer_funds(env, usdc_token, to, amount)`** (Internal)
-   - Transfers USDC from vault to a specified destination (e.g., settlement contract or revenue pool)
-   - Used internally by `deduct` and `batch_deduct`
-   - Uses underlying `token::Client` to execute transfer
+
 
 #### Modified Functions
 
