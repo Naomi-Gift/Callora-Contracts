@@ -45,6 +45,26 @@ This document outlines security best practices and checklist items for Callora v
 - [ ] State changes are persisted before making cross-contract calls to mitigate subtle state-caching issues
 - [ ] Checks-effects-interactions pattern followed
 
+### Revenue Routing External Transfers (Issue #110)
+
+The vault performs USDC transfers to configurable counterpart addresses on every
+`deduct` and `batch_deduct` call. These external transfers are justified as follows:
+
+- **settlement address**: set and updated exclusively by the on-chain admin via
+  `set_settlement`. Transfers to this address implement the documented
+  `Vault → Settlement` revenue flow described in `SETTLEMENT_IMPLEMENTATION.md`.
+- **revenue_pool address**: set and updated exclusively by the on-chain admin via
+  `set_revenue_pool`. Transfers to this address route product revenue to the
+  designated pool contract.
+- **Priority rule**: when both are configured, `settlement` takes priority and
+  `revenue_pool` is not used in the same deduct. This prevents "half updated"
+  routing states where funds could be split unexpectedly across two recipients.
+- **Unset behavior**: if neither address is configured the deducted amount stays
+  inside the vault (balance is reduced but no token transfer occurs). This state
+  is valid and explicitly documented—no funds are lost.
+- Both addresses can only be changed by the admin in a single atomic storage
+  write, ensuring no partial update is observable by other callers.
+
 ### Vault-Specific Risks
 
 - [ ] Deposit/withdraw invariants tested

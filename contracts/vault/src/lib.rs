@@ -700,6 +700,57 @@ impl CalloraVault {
         meta.balance
     }
 
+    /// Sets the revenue pool address that receives USDC on each deduct.
+    ///
+    /// Admin-only. Pass `None` to clear the revenue pool address.
+    ///
+    /// **Routing priority**: when a deduct occurs, `settlement` is tried first;
+    /// `revenue_pool` is used only when `settlement` is **not** configured.
+    /// If neither is set, USDC stays in the vault after the balance is reduced.
+    ///
+    /// Updating this address is atomic – no partial state is possible.
+    ///
+    /// # Panics
+    /// * `"unauthorized: caller is not admin"` – caller is not the admin.
+    ///
+    /// # Events
+    /// Emits topic `("set_revenue_pool", caller)` with data `address` on set,
+    /// or `("clear_revenue_pool", caller)` with data `()` on clear.
+    pub fn set_revenue_pool(env: Env, caller: Address, revenue_pool: Option<Address>) {
+        caller.require_auth();
+        let current_admin = Self::get_admin(env.clone());
+        if caller != current_admin {
+            panic!("unauthorized: caller is not admin");
+        }
+        match revenue_pool {
+            Some(addr) => {
+                env.storage()
+                    .instance()
+                    .set(&StorageKey::RevenuePool, &addr);
+                env.events().publish(
+                    (Symbol::new(&env, "set_revenue_pool"), caller),
+                    addr,
+                );
+            }
+            None => {
+                env.storage()
+                    .instance()
+                    .remove(&StorageKey::RevenuePool);
+                env.events().publish(
+                    (Symbol::new(&env, "clear_revenue_pool"), caller),
+                    (),
+                );
+            }
+        }
+    }
+
+    /// Get the revenue pool address, or `None` if not configured.
+    pub fn get_revenue_pool(env: Env) -> Option<Address> {
+        env.storage()
+            .instance()
+            .get(&StorageKey::RevenuePool)
+    }
+
     /// Sets the settlement contract address.
     /// Can only be called by the Admin.
     pub fn set_settlement(env: Env, caller: Address, settlement_address: Address) {

@@ -1833,6 +1833,153 @@ fn batch_deduct_with_settlement_transfers_total_usdc() {
 }
 
 // ---------------------------------------------------------------------------
+// set_revenue_pool / get_revenue_pool tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn set_revenue_pool_stores_and_get_returns_address() {
+    let env = Env::default();
+    let owner = Address::generate(&env);
+    let revenue_pool = Address::generate(&env);
+    let (_, client) = create_vault(&env);
+    let (usdc, _, _) = create_usdc(&env, &owner);
+
+    env.mock_all_auths();
+    client.init(&owner, &usdc, &None, &None, &None, &None, &None);
+    client.set_revenue_pool(&owner, &Some(revenue_pool.clone()));
+
+    assert_eq!(client.get_revenue_pool(), Some(revenue_pool));
+}
+
+#[test]
+fn set_revenue_pool_clear_removes_address() {
+    let env = Env::default();
+    let owner = Address::generate(&env);
+    let revenue_pool = Address::generate(&env);
+    let (_, client) = create_vault(&env);
+    let (usdc, _, _) = create_usdc(&env, &owner);
+
+    env.mock_all_auths();
+    client.init(&owner, &usdc, &None, &None, &None, &Some(revenue_pool), &None);
+    client.set_revenue_pool(&owner, &None);
+
+    assert_eq!(client.get_revenue_pool(), None);
+}
+
+#[test]
+fn set_revenue_pool_update_replaces_address() {
+    let env = Env::default();
+    let owner = Address::generate(&env);
+    let old_pool = Address::generate(&env);
+    let new_pool = Address::generate(&env);
+    let (_, client) = create_vault(&env);
+    let (usdc, _, _) = create_usdc(&env, &owner);
+
+    env.mock_all_auths();
+    client.init(&owner, &usdc, &None, &None, &None, &Some(old_pool), &None);
+    client.set_revenue_pool(&owner, &Some(new_pool.clone()));
+
+    assert_eq!(client.get_revenue_pool(), Some(new_pool));
+}
+
+#[test]
+#[should_panic(expected = "unauthorized: caller is not admin")]
+fn set_revenue_pool_unauthorized_panics() {
+    let env = Env::default();
+    let owner = Address::generate(&env);
+    let attacker = Address::generate(&env);
+    let revenue_pool = Address::generate(&env);
+    let (_, client) = create_vault(&env);
+    let (usdc, _, _) = create_usdc(&env, &owner);
+
+    env.mock_all_auths();
+    client.init(&owner, &usdc, &None, &None, &None, &None, &None);
+    client.set_revenue_pool(&attacker, &Some(revenue_pool));
+}
+
+#[test]
+fn get_revenue_pool_returns_none_when_not_set() {
+    let env = Env::default();
+    let owner = Address::generate(&env);
+    let (_, client) = create_vault(&env);
+    let (usdc, _, _) = create_usdc(&env, &owner);
+
+    env.mock_all_auths();
+    client.init(&owner, &usdc, &None, &None, &None, &None, &None);
+
+    assert_eq!(client.get_revenue_pool(), None);
+}
+
+#[test]
+fn deduct_routes_to_settlement_when_both_configured() {
+    // settlement takes priority over revenue_pool when both are set
+    let env = Env::default();
+    let owner = Address::generate(&env);
+    let caller = Address::generate(&env);
+    let settlement = Address::generate(&env);
+    let revenue_pool = Address::generate(&env);
+    let (vault_address, client) = create_vault(&env);
+    let (usdc_address, usdc_client, usdc_admin) = create_usdc(&env, &owner);
+
+    env.mock_all_auths();
+    fund_vault(&usdc_admin, &vault_address, 1000);
+    client.init(
+        &owner,
+        &usdc_address,
+        &Some(1000),
+        &Some(caller.clone()),
+        &None,
+        &Some(revenue_pool.clone()),
+        &None,
+    );
+    client.set_settlement(&owner, &settlement);
+
+    client.deduct(&caller, &400, &None);
+
+    // settlement gets the funds, revenue_pool gets nothing
+    assert_eq!(usdc_client.balance(&settlement), 400);
+    assert_eq!(usdc_client.balance(&revenue_pool), 0);
+}
+
+#[test]
+fn set_revenue_pool_emits_event_on_set() {
+    let env = Env::default();
+    let owner = Address::generate(&env);
+    let revenue_pool = Address::generate(&env);
+    let (_, client) = create_vault(&env);
+    let (usdc, _, _) = create_usdc(&env, &owner);
+
+    env.mock_all_auths();
+    client.init(&owner, &usdc, &None, &None, &None, &None, &None);
+    client.set_revenue_pool(&owner, &Some(revenue_pool.clone()));
+
+    let events = env.events().all();
+    let last = events.last().unwrap();
+    let topic0: Symbol = last.1.get(0).unwrap().into_val(&env);
+    assert_eq!(topic0, Symbol::new(&env, "set_revenue_pool"));
+    let data: Address = last.2.into_val(&env);
+    assert_eq!(data, revenue_pool);
+}
+
+#[test]
+fn set_revenue_pool_emits_event_on_clear() {
+    let env = Env::default();
+    let owner = Address::generate(&env);
+    let revenue_pool = Address::generate(&env);
+    let (_, client) = create_vault(&env);
+    let (usdc, _, _) = create_usdc(&env, &owner);
+
+    env.mock_all_auths();
+    client.init(&owner, &usdc, &None, &None, &None, &Some(revenue_pool), &None);
+    client.set_revenue_pool(&owner, &None);
+
+    let events = env.events().all();
+    let last = events.last().unwrap();
+    let topic0: Symbol = last.1.get(0).unwrap().into_val(&env);
+    assert_eq!(topic0, Symbol::new(&env, "clear_revenue_pool"));
+}
+
+// ---------------------------------------------------------------------------
 // set_settlement / get_settlement tests
 // ---------------------------------------------------------------------------
 
