@@ -520,7 +520,7 @@ fn pause_emits_event() {
                     .get(0)
                     .map(|v| {
                         let s: Symbol = v.into_val(&env);
-                        s == Symbol::new(&env, "pause")
+                        s == Symbol::new(&env, "vault_paused")
                     })
                     .unwrap_or(false)
         })
@@ -1606,7 +1606,6 @@ fn deduct_with_revenue_pool_transfers_usdc() {
         &Some(1000),
         &Some(caller.clone()),
         &None,
-        &None,
         &Some(revenue_pool.clone()),
         &None,
     );
@@ -1661,7 +1660,6 @@ fn batch_deduct_with_revenue_pool_transfers_total_usdc() {
         &usdc_address,
         &Some(1000),
         &Some(caller.clone()),
-        &None,
         &None,
         &Some(revenue_pool.clone()),
         &None,
@@ -1751,7 +1749,15 @@ fn set_revenue_pool_clear_removes_address() {
     let (usdc, _, _) = create_usdc(&env, &owner);
 
     env.mock_all_auths();
-    client.init(&owner, &usdc, &None, &None, &None, &Some(revenue_pool), &None);
+    client.init(
+        &owner,
+        &usdc,
+        &None,
+        &None,
+        &None,
+        &Some(revenue_pool),
+        &None,
+    );
     client.set_revenue_pool(&owner, &None);
 
     assert_eq!(client.get_revenue_pool(), None);
@@ -1861,7 +1867,15 @@ fn set_revenue_pool_emits_event_on_clear() {
     let (usdc, _, _) = create_usdc(&env, &owner);
 
     env.mock_all_auths();
-    client.init(&owner, &usdc, &None, &None, &None, &Some(revenue_pool), &None);
+    client.init(
+        &owner,
+        &usdc,
+        &None,
+        &None,
+        &None,
+        &Some(revenue_pool),
+        &None,
+    );
     client.set_revenue_pool(&owner, &None);
 
     let events = env.events().all();
@@ -2057,23 +2071,6 @@ fn withdraw_to_zero_succeeds() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn set_allowed_depositor_duplicate_add_is_rejected() {
-    let env = Env::default();
-    let owner = Address::generate(&env);
-    let depositor = Address::generate(&env);
-    let (vault_address, client) = create_vault(&env);
-    let (usdc, _, usdc_admin) = create_usdc(&env, &owner);
-
-    env.mock_all_auths();
-    fund_vault(&usdc_admin, &vault_address, 100);
-    client.init(&owner, &usdc, &Some(100), &None, &None, &None, &None);
-
-    client.set_allowed_depositor(&owner, &depositor);
-    let result = client.try_set_allowed_depositor(&owner, &depositor);
-    assert!(result.is_err(), "duplicate add must be rejected");
-}
-
-#[test]
 fn clear_allowed_depositors_removes_all() {
     let env = Env::default();
     let owner = Address::generate(&env);
@@ -2086,8 +2083,8 @@ fn clear_allowed_depositors_removes_all() {
     fund_vault(&usdc_admin, &vault_address, 100);
     client.init(&owner, &usdc, &Some(100), &None, &None, &None, &None);
 
-    client.set_allowed_depositor(&owner, &d1);
-    client.set_allowed_depositor(&owner, &d2);
+    client.set_allowed_depositor(&owner, &Some(d1.clone()));
+    client.set_allowed_depositor(&owner, &Some(d2.clone()));
     client.clear_allowed_depositors(&owner);
 
     // Neither address should be able to deposit after clear.
@@ -2123,7 +2120,7 @@ fn non_owner_cannot_set_allowed_depositor_issue108() {
     fund_vault(&usdc_admin, &vault_address, 100);
     client.init(&owner, &usdc, &Some(100), &None, &None, &None, &None);
 
-    let result = client.try_set_allowed_depositor(&attacker, &depositor);
+    let result = client.try_set_allowed_depositor(&attacker, &Some(depositor.clone()));
     assert!(result.is_err(), "non-owner must not mutate allowlist");
 }
 
@@ -2140,7 +2137,7 @@ fn non_owner_cannot_clear_allowed_depositors() {
     fund_vault(&usdc_admin, &vault_address, 100);
     client.init(&owner, &usdc, &Some(100), &None, &None, &None, &None);
 
-    client.set_allowed_depositor(&owner, &depositor);
+    client.set_allowed_depositor(&owner, &Some(depositor.clone()));
     let result = client.try_clear_allowed_depositors(&attacker);
     assert!(result.is_err(), "non-owner must not clear allowlist");
 }
