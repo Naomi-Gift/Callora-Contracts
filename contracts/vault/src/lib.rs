@@ -325,7 +325,10 @@ impl CalloraVault {
         if let Some(s) = inst.get::<StorageKey, Address>(&StorageKey::Settlement) {
             let ut: Address = inst.get(&StorageKey::UsdcToken).unwrap();
             Self::transfer_funds(&env, &ut, &s, amount);
-        } else if inst.get::<StorageKey, Address>(&StorageKey::RevenuePool).is_some() {
+        } else if inst
+            .get::<StorageKey, Address>(&StorageKey::RevenuePool)
+            .is_some()
+        {
             Self::transfer_to_revenue_pool(env.clone(), amount);
         }
         let rid = request_id.unwrap_or(Symbol::new(&env, ""));
@@ -372,7 +375,10 @@ impl CalloraVault {
         if let Some(s) = inst.get::<StorageKey, Address>(&StorageKey::Settlement) {
             let ut: Address = inst.get(&StorageKey::UsdcToken).unwrap();
             Self::transfer_funds(&env, &ut, &s, total);
-        } else if inst.get::<StorageKey, Address>(&StorageKey::RevenuePool).is_some() {
+        } else if inst
+            .get::<StorageKey, Address>(&StorageKey::RevenuePool)
+            .is_some()
+        {
             Self::transfer_to_revenue_pool(env.clone(), total);
         }
         meta.balance

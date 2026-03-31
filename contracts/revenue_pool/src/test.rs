@@ -4,7 +4,7 @@ use super::*;
 use soroban_sdk::testutils::{Address as _, Events as _};
 use soroban_sdk::token;
 use soroban_sdk::TryFromVal;
-use soroban_sdk::{Address, Env, Symbol, Vec};
+use soroban_sdk::{Address, Env, IntoVal, Symbol, Vec};
 
 fn create_usdc<'a>(
     env: &'a Env,
@@ -265,4 +265,89 @@ fn batch_distribute_success_events() {
             }
         }
     }
+}
+
+#[test]
+fn receive_payment_emits_event_for_admin() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let (_, client) = create_pool(&env);
+    let (usdc, _, _) = create_usdc(&env, &admin);
+
+    client.init(&admin, &usdc);
+    client.receive_payment(&admin, &250, &true);
+
+    let events = env.events().all();
+    let receive_event = events.last().unwrap();
+    let event_name = Symbol::try_from_val(&env, &receive_event.1.get(0).unwrap()).unwrap();
+    assert_eq!(event_name, Symbol::new(&env, "receive_payment"));
+
+    let caller: Address = Address::try_from_val(&env, &receive_event.1.get(1).unwrap()).unwrap();
+    assert_eq!(caller, admin);
+
+    let (amount, from_vault): (i128, bool) = receive_event.2.into_val(&env);
+    assert_eq!(amount, 250);
+    assert!(from_vault);
+}
+
+#[test]
+#[should_panic(expected = "no pending admin")]
+fn claim_admin_without_pending_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let candidate = Address::generate(&env);
+    let (_, client) = create_pool(&env);
+    let (usdc, _, _) = create_usdc(&env, &admin);
+
+    client.init(&admin, &usdc);
+    client.claim_admin(&candidate);
+}
+
+#[test]
+#[should_panic(expected = "unauthorized: caller is not pending admin")]
+fn claim_admin_wrong_caller_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let pending_admin = Address::generate(&env);
+    let attacker = Address::generate(&env);
+    let (_, client) = create_pool(&env);
+    let (usdc, _, _) = create_usdc(&env, &admin);
+
+    client.init(&admin, &usdc);
+    client.set_admin(&admin, &pending_admin);
+    client.claim_admin(&attacker);
+}
+
+#[test]
+#[should_panic(expected = "invalid recipient: cannot distribute to the contract itself")]
+fn distribute_to_self_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let (pool_addr, client) = create_pool(&env);
+    let (usdc_address, _, usdc_admin) = create_usdc(&env, &admin);
+
+    client.init(&admin, &usdc_address);
+    fund_pool(&usdc_admin, &pool_addr, 100);
+    client.distribute(&admin, &pool_addr, &50);
+}
+
+#[test]
+#[should_panic(expected = "amount must be positive")]
+fn batch_distribute_zero_amount_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let dev = Address::generate(&env);
+    let (_, client) = create_pool(&env);
+    let (usdc_address, _, _) = create_usdc(&env, &admin);
+
+    client.init(&admin, &usdc_address);
+
+    let mut payments: Vec<(Address, i128)> = Vec::new(&env);
+    payments.push_back((dev, 0));
+    client.batch_distribute(&admin, &payments);
 }

@@ -83,6 +83,8 @@ Advanced settlement with individual developer balance tracking.
 2. **Build and test:**
 
    ```bash
+   cargo fmt --all
+   cargo clippy --all-targets --all-features -- -D warnings
    cargo build
    cargo test
    ```
@@ -90,16 +92,16 @@ Advanced settlement with individual developer balance tracking.
 3. **Build WASM:**
 
    ```bash
-   # Build all contracts
-   cargo build --target wasm32-unknown-unknown --release
-
-   # Or use the convenience script
+   # Build all publishable contract crates and verify their release WASM sizes
    ./scripts/check-wasm-size.sh
+
+   # Or build a specific contract manually
+   cargo build --target wasm32-unknown-unknown --release -p callora-vault
    ```
 
 ## Development
 
-Use one branch per issue or feature. Run `cargo fmt`, `cargo clippy --all-targets --all-features -- -D warnings`, and `cargo test` before pushing.
+Use one branch per issue or feature. Run `cargo fmt --all`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test`, and `./scripts/check-wasm-size.sh` before pushing so every publishable contract stays within Soroban's WASM size limit.
 
 ### Test coverage
 

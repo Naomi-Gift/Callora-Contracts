@@ -13,7 +13,8 @@ mod settlement_tests {
         env.mock_all_auths();
         let admin = Address::generate(&env);
         let vault = Address::generate(&env);
-                let addr = env.register(CalloraSettlement, ());
+        let third_party = Address::generate(&env);
+        let addr = env.register(CalloraSettlement, ());
         let client = CalloraSettlementClient::new(&env, &addr);
         client.init(&admin, &vault);
         (env, addr, admin, vault, third_party)
@@ -152,7 +153,7 @@ mod settlement_tests {
         env.mock_all_auths();
         let admin = Address::generate(&env);
         let vault = Address::generate(&env);
-                let addr = env.register(CalloraSettlement, ());
+        let addr = env.register(CalloraSettlement, ());
         let client = CalloraSettlementClient::new(&env, &addr);
         client.init(&admin, &vault);
         client.receive_payment(&admin, &100i128, &true, &None);
