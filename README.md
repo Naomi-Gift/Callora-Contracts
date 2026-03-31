@@ -1,4 +1,4 @@
-# Callora Contracts
+# Callora Contracts 
 
 Soroban smart contracts for the Callora API marketplace: prepaid vault (USDC) and balance deduction for pay-per-call settlement.
 

@@ -178,6 +178,37 @@ fn set_admin_two_step_transfers_control() {
 }
 
 #[test]
+#[should_panic(expected = "unauthorized: caller is not admin")]
+fn set_admin_unauthorized_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let attacker = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+    let (_, client) = create_pool(&env);
+    let (usdc, _, _) = create_usdc(&env, &admin);
+
+    client.init(&admin, &usdc);
+    client.set_admin(&attacker, &new_admin);
+}
+
+#[test]
+#[should_panic(expected = "unauthorized: caller is not pending admin")]
+fn claim_admin_wrong_address_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+    let attacker = Address::generate(&env);
+    let (_, client) = create_pool(&env);
+    let (usdc, _, _) = create_usdc(&env, &admin);
+
+    client.init(&admin, &usdc);
+    client.set_admin(&admin, &new_admin);
+    client.claim_admin(&attacker);
+}
+
+#[test]
 fn admin_transfer_emits_events() {
     let env = Env::default();
     env.mock_all_auths();
@@ -209,6 +240,27 @@ fn admin_transfer_emits_events() {
         event_name_comp,
         Symbol::new(&env, "admin_transfer_completed")
     );
+}
+
+#[test]
+fn receive_payment_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let (_, client) = create_pool(&env);
+    let (usdc, _, _) = create_usdc(&env, &admin);
+
+    client.init(&admin, &usdc);
+    client.receive_payment(&admin, &250, &true);
+
+    let events = env.events().all();
+    let receive_payment_event = events.last().unwrap();
+    let event_name = Symbol::try_from_val(&env, &receive_payment_event.1.get(0).unwrap()).unwrap();
+    assert_eq!(event_name, Symbol::new(&env, "receive_payment"));
+
+    let amount_and_source: (i128, bool) =
+        <(i128, bool)>::try_from_val(&env, &receive_payment_event.2).unwrap();
+    assert_eq!(amount_and_source, (250, true));
 }
 
 #[test]
