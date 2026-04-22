@@ -2926,7 +2926,8 @@ mod fuzz {
         );
 
         // Give the depositor (owner) plenty of USDC.
-        let deposit_reserve: i128 = initial * 10 + 1_000_000;
+        // Use a very large amount to handle large max_deduct scenarios
+        let deposit_reserve: i128 = 10_000_000_000_000; // 10 trillion to handle large deposits
         usdc_admin.mint(&owner, &deposit_reserve);
         usdc_client.approve(&owner, &vault_addr, &deposit_reserve, &999_999);
 
@@ -2941,7 +2942,9 @@ mod fuzz {
             match op {
                 // --- deposit ---
                 0 => {
-                    let amount: i128 = rng.gen_range(1..=max_deduct_val);
+                    // Cap deposit amount to avoid exceeding available balance
+                    let max_deposit = max_deduct_val.min(1_000_000_000);
+                    let amount: i128 = rng.gen_range(1..=max_deposit);
                     if paused {
                         // deposit must fail while paused
                         assert!(client.try_deposit(&owner, &amount).is_err());
@@ -2954,7 +2957,10 @@ mod fuzz {
                 // --- single deduct ---
                 1 => {
                     let amount: i128 = rng.gen_range(1..=max_deduct_val);
-                    if sim >= amount {
+                    if paused {
+                        // deduct must fail while paused
+                        assert!(client.try_deduct(&caller, &amount, &None).is_err());
+                    } else if sim >= amount {
                         sim -= amount;
                         client.deduct(&caller, &amount, &None);
                     } else {
@@ -2984,7 +2990,16 @@ mod fuzz {
                             request_id: None,
                         });
                     }
-                    if valid && sim >= batch_total {
+                    if paused {
+                        // batch_deduct must fail while paused
+                        let before = client.balance();
+                        let _ = client.try_batch_deduct(&caller, &items);
+                        assert_eq!(
+                            client.balance(),
+                            before,
+                            "failed batch must not change balance"
+                        );
+                    } else if valid && sim >= batch_total {
                         sim -= batch_total;
                         client.batch_deduct(&caller, &items);
                     } else {
