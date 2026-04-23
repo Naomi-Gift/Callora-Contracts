@@ -94,6 +94,7 @@ The Revenue Pool contract (`contracts/revenue_pool`) operates under the followin
 - [ ] Address/parameter validation on all public functions
 - [ ] Boundary conditions tested (max values, zero values)
 - [ ] Error messages provide clear context for debugging
+- `callora-vault::init` enforces `min_deposit > 0`; omitted values default to `1`.
 
 ### Event Logging
 
