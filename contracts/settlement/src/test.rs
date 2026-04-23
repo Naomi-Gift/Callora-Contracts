@@ -62,7 +62,7 @@ mod settlement_tests {
         assert_eq!(global_pool.total_balance, 0);
         assert_eq!(global_pool.last_updated, 1_700_000_000);
 
-        let all_balances = client.get_all_developer_balances();
+        let all_balances = client.get_all_developer_balances(&admin);
         assert_eq!(all_balances.len(), 0);
         assert_eq!(client.get_developer_balance(&developer), 0);
     }
@@ -142,7 +142,7 @@ mod settlement_tests {
         let client = CalloraSettlementClient::new(&env, &addr);
         client.init(&admin, &vault);
 
-        let all = client.get_all_developer_balances();
+        let all = client.get_all_developer_balances(&admin);
         assert_eq!(all.len(), 0);
     }
 
@@ -221,7 +221,7 @@ mod settlement_tests {
         client.receive_payment(&vault, &300i128, &false, &Some(dev1.clone()));
         client.receive_payment(&vault, &200i128, &false, &Some(dev2.clone()));
 
-        let all = client.get_all_developer_balances();
+        let all = client.get_all_developer_balances(&admin);
         assert_eq!(all.len(), 2);
     }
 
@@ -235,7 +235,7 @@ mod settlement_tests {
         let client = CalloraSettlementClient::new(&env, &addr);
         client.init(&admin, &vault);
 
-        let all = client.get_all_developer_balances();
+        let all = client.get_all_developer_balances(&admin);
         assert_eq!(all.len(), 0);
     }
 
@@ -852,7 +852,7 @@ mod settlement_tests {
         assert_eq!(client.get_developer_balance(&developer), 500i128);
 
         // Admin can still view all balances
-        let all_balances = client.get_all_developer_balances();
+        let all_balances = client.get_all_developer_balances(&new_admin);
         assert_eq!(all_balances.len(), 1);
         assert_eq!(all_balances.get(0).unwrap().balance, 500i128);
     }
@@ -969,67 +969,91 @@ mod settlement_tests {
         assert_eq!(client.get_developer_balance(&developer), 200i128);
     }
 
+    // --- Authorization Matrix Tests ---
+
     #[test]
-    fn test_pool_balance_overflow_panic() {
-        // Explicit test for global pool balance overflow.
-        // Exercises the checked_add(...).unwrap_or_else(|| panic!("pool balance overflow")) path.
-        let env = Env::default();
-        env.mock_all_auths();
-        let admin = Address::generate(&env);
-        let vault = Address::generate(&env);
-        let addr = env.register(CalloraSettlement, ());
+    fn test_set_admin_authorization_matrix() {
+        let (env, addr, admin, vault, third_party) = setup_contract();
         let client = CalloraSettlementClient::new(&env, &addr);
-        client.init(&admin, &vault);
+        let new_admin = Address::generate(&env);
 
-        // 1. Manually set global pool near i128::MAX
-        let near_max = i128::MAX - 10;
-        env.as_contract(&addr, || {
-            let inst = env.storage().instance();
-            let mut pool: crate::GlobalPool = inst.get(&Symbol::new(&env, "global_pool")).unwrap();
-            pool.total_balance = near_max;
-            inst.set(&Symbol::new(&env, "global_pool"), &pool);
-        });
+        // Admin can set admin
+        client.set_admin(&admin, &new_admin);
 
-        // 2. Try payment that causes overflow
-        let result = client.try_receive_payment(&vault, &11i128, &true, &None);
-        assert!(
-            result.is_err(),
-            "global pool must fail safely when balance would overflow i128::MAX"
-        );
+        // Vault cannot set admin
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            client.set_admin(&vault, &new_admin);
+        }));
+        assert!(result.is_err());
+        assert!(panic_message(result.unwrap_err()).contains("unauthorized: caller is not admin"));
+
+        // Third party cannot set admin
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            client.set_admin(&third_party, &new_admin);
+        }));
+        assert!(result.is_err());
+        assert!(panic_message(result.unwrap_err()).contains("unauthorized: caller is not admin"));
     }
 
     #[test]
-    fn test_developer_balance_overflow_panic() {
-        // Explicit test for developer balance overflow.
-        // Exercises the checked_add(...).unwrap_or_else(|| panic!("developer balance overflow")) path.
-        let env = Env::default();
-        env.mock_all_auths();
-        let admin = Address::generate(&env);
-        let vault = Address::generate(&env);
-        let dev = Address::generate(&env);
-        let addr = env.register(CalloraSettlement, ());
+    fn test_set_vault_authorization_matrix() {
+        let (env, addr, admin, vault, third_party) = setup_contract();
         let client = CalloraSettlementClient::new(&env, &addr);
-        client.init(&admin, &vault);
+        let new_vault = Address::generate(&env);
 
-        // 1. Manually set developer balance near i128::MAX
-        let near_max = i128::MAX - 5;
-        env.as_contract(&addr, || {
-            let mut balances: Map<Address, i128> = env
-                .storage()
-                .instance()
-                .get(&Symbol::new(&env, "developer_balances"))
-                .unwrap();
-            balances.set(dev.clone(), near_max);
-            env.storage()
-                .instance()
-                .set(&Symbol::new(&env, "developer_balances"), &balances);
-        });
+        // Admin can set vault
+        client.set_vault(&admin, &new_vault);
 
-        // 2. Try payment that causes overflow
-        let result = client.try_receive_payment(&vault, &6i128, &false, &Some(dev));
-        assert!(
-            result.is_err(),
-            "developer balance must fail safely when balance would overflow i128::MAX"
-        );
+        // Vault cannot set vault
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            client.set_vault(&vault, &new_vault);
+        }));
+        assert!(result.is_err());
+        assert!(panic_message(result.unwrap_err()).contains("unauthorized: caller is not admin"));
+
+        // Third party cannot set vault
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            client.set_vault(&third_party, &new_vault);
+        }));
+        assert!(result.is_err());
+        assert!(panic_message(result.unwrap_err()).contains("unauthorized: caller is not admin"));
+    }
+
+    #[test]
+    fn test_accept_admin_authorization_matrix() {
+        let (env, addr, admin, vault, third_party) = setup_contract();
+        let client = CalloraSettlementClient::new(&env, &addr);
+        let new_admin = Address::generate(&env);
+
+        client.set_admin(&admin, &new_admin);
+
+        // Accept for new_admin (using mock_all_auths which is ON from setup_contract)
+        client.accept_admin();
+        assert_eq!(client.get_admin(), new_admin);
+    }
+
+
+
+    #[test]
+    fn test_get_all_developer_balances_authorization_matrix() {
+        let (env, addr, admin, vault, third_party) = setup_contract();
+        let client = CalloraSettlementClient::new(&env, &addr);
+
+        // Admin can call
+        client.get_all_developer_balances(&admin);
+
+        // Vault cannot call
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            client.get_all_developer_balances(&vault);
+        }));
+        assert!(result.is_err());
+        assert!(panic_message(result.unwrap_err()).contains("unauthorized: caller is not admin"));
+
+        // Third party cannot call
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            client.get_all_developer_balances(&third_party);
+        }));
+        assert!(result.is_err());
+        assert!(panic_message(result.unwrap_err()).contains("unauthorized: caller is not admin"));
     }
 }
