@@ -129,6 +129,42 @@ Emitted when the vault is unpaused by the admin.
 
 ---
 
+### `set_settlement`
+
+Emitted when the settlement address is updated by the admin.
+
+| Field   | Location | Type   | Description   |
+|---------|----------|--------|---------------|
+| topic 0 | topics   | Symbol | `"set_settlement"` |
+| topic 1 | topics   | Address| admin (caller) |
+| data    | data     | Address| new settlement address |
+
+---
+
+### `set_revenue_pool`
+
+Emitted when the revenue pool address is updated by the admin.
+
+| Field   | Location | Type   | Description   |
+|---------|----------|--------|---------------|
+| topic 0 | topics   | Symbol | `"set_revenue_pool"` |
+| topic 1 | topics   | Address| admin (caller) |
+| data    | data     | Address| new revenue pool address |
+
+---
+
+### `clear_revenue_pool`
+
+Emitted when the revenue pool address is removed.
+
+| Field   | Location | Type   | Description   |
+|---------|----------|--------|---------------|
+| topic 0 | topics   | Symbol | `"clear_revenue_pool"` |
+| topic 1 | topics   | Address| admin (caller) |
+| data    | data     | ()     | empty |
+
+---
+
 ## Not yet implemented
 
 - **OwnershipTransfer**: not present in current vault; would list old_owner, new_owner.

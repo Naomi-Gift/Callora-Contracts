@@ -23,6 +23,8 @@ The primary storage and metering contract.
 - `batch_deduct(caller, items)` — Atomically process multiple deductions.
 - `set_allowed_depositor(caller, depositor)` — Owner-only; delegate deposit rights.
 - `set_authorized_caller(caller)` — Owner-only; set the address permitted to trigger deductions.
+- `set_settlement(caller, settlement_address)` — Admin-only; set/rotate the destination for deducted funds.
+- `get_settlement()` — Return the current settlement address.
 - `get_price(api_id)` — returns `Option<i128>` with the configured price per call for `api_id`.
 
 ## Architecture & Flow
