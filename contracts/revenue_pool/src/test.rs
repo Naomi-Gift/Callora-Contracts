@@ -264,6 +264,41 @@ fn receive_payment_emits_event() {
 }
 
 #[test]
+#[should_panic(expected = "unauthorized: caller is not admin")]
+fn receive_payment_non_admin_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let attacker = Address::generate(&env);
+    let (_, client) = create_pool(&env);
+    let (usdc, _, _) = create_usdc(&env, &admin);
+
+    client.init(&admin, &usdc);
+    client.receive_payment(&attacker, &250, &true);
+}
+
+#[test]
+fn receive_payment_is_event_only_and_does_not_move_tokens() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let developer = Address::generate(&env);
+    let (pool_addr, client) = create_pool(&env);
+    let (usdc_address, usdc_client, usdc_admin) = create_usdc(&env, &admin);
+
+    client.init(&admin, &usdc_address);
+    fund_pool(&usdc_admin, &pool_addr, 500);
+
+    let before_pool = usdc_client.balance(&pool_addr);
+    let before_developer = usdc_client.balance(&developer);
+
+    client.receive_payment(&admin, &250, &true);
+
+    assert_eq!(usdc_client.balance(&pool_addr), before_pool);
+    assert_eq!(usdc_client.balance(&developer), before_developer);
+}
+
+#[test]
 fn batch_distribute_success() {
     let env = Env::default();
     env.mock_all_auths();

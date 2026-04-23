@@ -86,7 +86,7 @@ The Revenue Pool contract (`contracts/revenue_pool`) operates under the followin
   - *Mitigation:* The deployment process must verify the official Stellar USDC (or appropriate wrapped USDC) contract address before initialization. The `init` function guards against re-initialization.
 
 - **Operational Griefing (Balances):** Anyone can effectively transfer USDC to the revenue pool. If an attacker sends unsolicited funds, it increases the `balance()` but does not disrupt the `distribute` logic, as distribution is explicitly controlled by the admin.
-  - *Mitigation:* The pool does not rely on strict balance equality invariants for its core operations, mitigating balance-based operational griefing. Off-chain monitoring should track `receive_payment` events and native token transfers to reconcile expected vs. actual balances.
+  - *Mitigation:* The pool does not rely on strict balance equality invariants for its core operations, mitigating balance-based operational griefing. The `receive_payment` entrypoint is admin-only and event-only (no token movement), so indexers should reconcile `receive_payment` logs with actual token transfers.
 
 ### Input Validation
 

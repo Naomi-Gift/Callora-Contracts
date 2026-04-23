@@ -235,11 +235,12 @@ Emitted when the revenue pool is initialized.
 ### `receive_payment`
 
 Emitted by `receive_payment(caller, amount, from_vault)`.
+This entrypoint is **admin-only** and **event-only** (it does not move USDC).
 
 | Field   | Location | Type    | Description                                      |
 |---------|----------|---------|--------------------------------------------------|
 | topic 0 | topics   | Symbol  | `"receive_payment"`                              |
-| topic 1 | topics   | Address | `caller` — typically admin or vault              |
+| topic 1 | topics   | Address | `caller` — current admin address                 |
 | data    | data     | (i128, bool) | (amount, from_vault)                        |
 
 ---

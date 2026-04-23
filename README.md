@@ -62,7 +62,7 @@ A simple distribution contract for revenue.
 - `init(admin, usdc_token)` — Initialize with an admin and USDC token.
 - `distribute(caller, to, amount)` — Admin sends USDC from this contract to a developer.
 - `batch_distribute(caller, payments)` — Atomically distribute to multiple developers.
-- `receive_payment(caller, amount, from_vault)` — Log payment receipt for indexers.
+- `receive_payment(caller, amount, from_vault)` — **Admin-only, event-only** receipt log for indexers; does not transfer tokens.
 
 ### 3. `callora-settlement`
 
