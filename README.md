@@ -1,4 +1,4 @@
-# Callora Contracts 
+# Callora Contracts
 
 Soroban smart contracts for the Callora API marketplace: prepaid vault (USDC) and balance deduction for pay-per-call settlement.
 
@@ -9,7 +9,7 @@ Soroban smart contracts for the Callora API marketplace: prepaid vault (USDC) an
 
 - **Rust** with **Soroban SDK** (Stellar)
 - Contract compiles to WebAssembly and deploys to Stellar/Soroban
-- Minimal WASM size (~17.5KB for vault)
+- Minimal WASM size (~17.5 KB for vault)
 
 ## Contract Quickstart
 
@@ -44,7 +44,7 @@ Release artifacts land in `target/wasm32-unknown-unknown/release/<crate>.wasm`. 
 
 ### 1. `callora-vault`
 
-The primary storage and metering contract.
+The primary storage and metering contract. Holds USDC on behalf of API consumers and deducts balances on every metered call.
 
 - `init(owner, usdc_token, ..., authorized_caller, min_deposit, revenue_pool, max_deduct)` — Initialize with owner and optional configuration.
 - `deposit(caller, amount)` — Owner or allowed depositor increases ledger balance.
@@ -73,36 +73,14 @@ sequenceDiagram
     Note over B,V: Metering & Deduction
     B->>V: deduct(caller, total_amount, request_id)
     V->>V: validate balance & auth
-    
+
     Note over V,S: Fund Movement
     V->>S: USDC Transfer (via token contract)
-    
+
     Note over S,D: Distribution
     S->>D: distribute(to, amount)
     D-->>S: Transaction Complete
 ```
-
-- `get_meta()` / `balance()` — View configuration and current ledger balance.
-- `set_metadata` / `get_metadata` — Attach off-chain metadata (IPFS/URI) to offerings.
-
-### 2. `callora-revenue-pool`
-
-A simple distribution contract for revenue.
-
-- `init(admin, usdc_token)` — Initialize with an admin and USDC token.
-- `distribute(caller, to, amount)` — Admin sends USDC from this contract to a developer.
-- `batch_distribute(caller, payments)` — Atomically distribute to multiple developers.
-- `receive_payment(caller, amount, from_vault)` — Log payment receipt for indexers.
-
-### 3. `callora-settlement`
-
-Advanced settlement with individual developer balance tracking.
-
-- `init(admin, vault_address)` — Link to the vault and set admin.
-- `receive_payment(caller, amount, to_pool, developer)` — Receive funds from vault; credit global pool or specific developer.
-- `get_developer_balance(developer)` — Check tracked balance for a specific developer.
-- `get_global_pool()` — View total accumulated pool balance.
-- `set_vault(caller, new_vault)` — Admin-only; update the linked vault address.
 
 ## Local setup
 
@@ -135,7 +113,7 @@ Use one branch per issue or feature. Run `cargo fmt --all`, `cargo clippy --all-
 
 ### Test coverage
 
-The project enforces a **minimum of 95% line coverage** on every push via GitHub Actions.
+The project enforces a **minimum of 95% line coverage** on every push via GitHub Actions (see [`.github/workflows/coverage.yml`](.github/workflows/coverage.yml)).
 
 ```bash
 # Run coverage locally
@@ -180,15 +158,13 @@ See [`docs/interfaces/README.md`](docs/interfaces/README.md) for the schema desc
 
 ## Security Notes
 
-- **Checked arithmetic**: All mutations use `checked_add` / `checked_sub`.
-- **Input validation**: Enforced `amount > 0` for all deposits and deductions.
-- **Overflow checks**: Enabled in both dev and release profiles.
+- **Checked arithmetic**: All balance mutations use `checked_add` / `checked_sub` with explicit panics.
+- **Input validation**: `amount > 0` enforced on all deposits and deductions.
+- **Overflow checks**: Enabled in both dev and release profiles (`Cargo.toml`).
 - **Role-Based Access**: Documented in [docs/ACCESS_CONTROL.md](docs/ACCESS_CONTROL.md).
 - **Dedup hardening**: Duplicate `get_max_deduct` declaration removed in `callora-vault`; allowed depositor duplicate-path test now asserts list cardinality.
 
-## Security
-
-See [SECURITY.md](SECURITY.md) for the Vault Security Checklist and audit recommendations.
+See [SECURITY.md](SECURITY.md) for the full Vault Security Checklist and audit recommendations.
 
 ---
 
